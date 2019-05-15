@@ -75,8 +75,8 @@ export class ScmWidget extends ScmNavigableListWidget<ScmResource> implements St
     constructor() {
         super();
         this.id = 'theia-scmContainer';
-        this.title.label = 'Source Control';
-        this.title.caption = 'SCM';
+        this.title.label = 'SCM';
+        this.title.caption = 'Source Control';
         this.title.closable = true;
         this.title.iconClass = 'scm-tab-icon';
         this.addClass('theia-scm');
