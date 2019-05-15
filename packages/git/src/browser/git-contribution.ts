@@ -391,7 +391,7 @@ export class GitContribution implements
             };
             const open = async () => {
                 const uriToOpen = await this.gitCommands.getUriToOpen(change);
-                this.editorManager.open(uriToOpen, { mode: 'activate' });
+                this.editorManager.open(uriToOpen, { mode: 'reveal' });
             };
             return resource;
         }));

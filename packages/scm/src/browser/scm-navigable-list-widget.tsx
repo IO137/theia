@@ -21,7 +21,7 @@ import URI from '@theia/core/lib/common/uri';
 import { ScmResourceGroup } from './scm-service';
 
 @injectable()
-export abstract class ScmNavigableListWidget<T extends { group: ScmResourceGroup, selected?: boolean, sourceUri: URI }> extends ReactWidget {
+export abstract class ScmNavigableListWidget<T extends { group: ScmResourceGroup, selected?: boolean, sourceUri: URI, open: () => void }> extends ReactWidget {
 
     protected scmNodes: T[];
     private _scrollContainer: string;
@@ -56,11 +56,19 @@ export abstract class ScmNavigableListWidget<T extends { group: ScmResourceGroup
     }
 
     protected navigateLeft(): void {
-        this.selectPreviousNode();
+        const selected = this.getSelected();
+        if (selected) {
+            selected.open();
+            this.selectPreviousNode();
+        }
     }
 
     protected navigateRight(): void {
-        this.selectNextNode();
+        const selected = this.getSelected();
+        if (selected) {
+            selected.open();
+            this.selectNextNode();
+        }
     }
 
     protected navigateUp(): void {

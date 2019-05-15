@@ -546,7 +546,7 @@ class ScmResourceGroupsContainer extends React.Component<ScmResourceGroupsContai
     componentDidMount() {
         setTimeout(() => {
             this.props.addScmListKeyListeners(this.props.id);
-        }, 0);
+        }, 1000);
     }
 }
 
