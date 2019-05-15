@@ -158,8 +158,11 @@ export abstract class AbstractResourcePreferenceProvider extends PreferenceProvi
             if (this.schemaProvider.testOverrideValue(preferenceName, preferenceValue)) {
                 // tslint:disable-next-line:forin
                 for (const overriddenPreferenceName in preferenceValue) {
-                    const overriddeValue = preferenceValue[overriddenPreferenceName];
-                    preferences[`${preferenceName}.${overriddenPreferenceName}`] = overriddeValue;
+                    const overriddenValue = preferenceValue[overriddenPreferenceName];
+                    if (!preferences[`${preferenceName}`]) {
+                        preferences[`${preferenceName}`] = {};
+                    }
+                    preferences[`${preferenceName}`][`${overriddenPreferenceName}`] = overriddenValue;
                 }
             } else {
                 preferences[preferenceName] = preferenceValue;
