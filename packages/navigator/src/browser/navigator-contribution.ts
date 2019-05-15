@@ -31,6 +31,7 @@ import { FileNavigatorFilter } from './navigator-filter';
 import { WorkspaceNode } from './navigator-tree';
 import { NavigatorContextKeyService } from './navigator-context-key-service';
 import { TabBarToolbarContribution, TabBarToolbarRegistry } from '@theia/core/lib/browser/shell/tab-bar-toolbar';
+import { FileSystemCommands } from '@theia/filesystem/lib/browser/filesystem-frontend-contribution';
 
 export namespace FileNavigatorCommands {
     export const REVEAL_IN_NAVIGATOR: Command = {
@@ -204,7 +205,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
 
         const downloadUploadMenu = [...NAVIGATOR_CONTEXT_MENU, '6_downloadupload'];
         registry.registerMenuAction(downloadUploadMenu, {
-            commandId: FileDownloadCommands.UPLOAD.id,
+            commandId: FileSystemCommands.UPLOAD.id,
             order: 'a'
         });
         registry.registerMenuAction(downloadUploadMenu, {
@@ -314,7 +315,7 @@ export class FileNavigatorContribution extends AbstractViewContribution<FileNavi
         // select first visible node
         const firstChild = WorkspaceNode.is(root) ? root.children[0] : root;
         if (SelectableTreeNode.is(firstChild)) {
-            await model.selectNode(firstChild);
+            model.selectNode(firstChild);
         }
     }
 
