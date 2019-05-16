@@ -29,7 +29,10 @@ import { TerminalActiveContext } from './terminal-keybinding-contexts';
 import { createCommonBindings } from '../common/terminal-common-module';
 import { TerminalService } from './base/terminal-service';
 import { bindTerminalPreferences } from './terminal-preferences';
-import { URLMatcher, ITerminalLinkMatcher, LocalhostMatcher } from './terminal-linkmatcher';
+import { URLMatcher, LocalhostMatcher } from './terminal-linkmatcher';
+import { ITerminalContribution } from './terminal-contribution';
+import { TerminalLinkmatcherFiles } from './terminal-linkmatcher-files';
+import { TerminalLinkmatcherDiffPre, TerminalLinkmatcherDiffPost } from './terminal-linkmatcher-diff';
 
 import '../../src/browser/terminal.css';
 import 'xterm/lib/xterm.css';
@@ -84,9 +87,20 @@ export default new ContainerModule(bind => {
     createCommonBindings(bind);
 
     // link matchers
-    bindContributionProvider(bind, ITerminalLinkMatcher);
+    bindContributionProvider(bind, ITerminalContribution);
+
     bind(URLMatcher).toSelf().inSingletonScope();
-    bind(ITerminalLinkMatcher).toService(URLMatcher);
+    bind(ITerminalContribution).toService(URLMatcher);
+
     bind(LocalhostMatcher).toSelf().inSingletonScope();
-    bind(ITerminalLinkMatcher).toService(LocalhostMatcher);
+    bind(ITerminalContribution).toService(LocalhostMatcher);
+
+    bind(TerminalLinkmatcherFiles).toSelf().inSingletonScope();
+    bind(ITerminalContribution).toService(TerminalLinkmatcherFiles);
+
+    bind(TerminalLinkmatcherDiffPre).toSelf().inSingletonScope();
+    bind(ITerminalContribution).toService(TerminalLinkmatcherDiffPre);
+
+    bind(TerminalLinkmatcherDiffPost).toSelf().inSingletonScope();
+    bind(ITerminalContribution).toService(TerminalLinkmatcherDiffPost);
 });
