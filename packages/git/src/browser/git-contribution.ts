@@ -777,11 +777,11 @@ export class GitContribution implements
         return undefined;
     }
 
-    protected async getOpenChangesOptions(widget?: Widget): Promise<GitOpenChangesOptions | undefined> {
+    protected getOpenChangesOptions(widget?: Widget): GitOpenChangesOptions | undefined {
         const ref = widget ? widget : this.editorManager.currentEditor;
         if (ref instanceof EditorWidget && !DiffUris.isDiffUri(ref.editor.uri)) {
             const uri = ref.editor.uri;
-            const change = await this.gitCommands.findChange(uri);
+            const change = this.gitCommands.findChange(uri);
             if (change && this.gitCommands.getUriToOpen(change).toString() !== uri.toString()) {
                 const selection = ref.editor.selection;
                 return { change, options: { selection, widgetOptions: { ref } } };

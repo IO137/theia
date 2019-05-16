@@ -14,7 +14,14 @@
  * SPDX-License-Identifier: EPL-2.0 OR GPL-2.0 WITH Classpath-exception-2.0
  ********************************************************************************/
 import { injectable, inject, postConstruct } from 'inversify';
-import { ContextMenuRenderer, SELECTED_CLASS, StatefulWidget, StorageService } from '@theia/core/lib/browser';
+import { Message } from '@phosphor/messaging';
+import {
+    ApplicationShell,
+    ContextMenuRenderer,
+    SELECTED_CLASS,
+    StatefulWidget,
+    StorageService
+} from '@theia/core/lib/browser';
 import * as React from 'react';
 import { AlertMessage } from '@theia/core/lib/browser/widgets/alert-message';
 import {
@@ -27,7 +34,8 @@ import {
     ScmService,
     ScmAmendSupport
 } from './scm-service';
-import { CommandRegistry, MenuPath } from '@theia/core';
+import { CommandRegistry, Emitter, MenuPath } from '@theia/core';
+import { Event as CoreEvent} from '@theia/core';
 import { EditorManager } from '@theia/editor/lib/browser';
 import { ScmAvatarService } from './scm-avatar-service';
 import { ScmTitleCommandRegistry, ScmTitleItem } from './scm-title-command-registry';
@@ -48,6 +56,7 @@ export class ScmWidget extends ScmNavigableListWidget<ScmResource> implements St
     protected listContainer: ScmResourceGroupsContainer | undefined;
 
     private selectedRepoUri: string | undefined;
+    private onUpdateEmitter: Emitter<void> = new Emitter();
     protected readonly selectChange = (change: ScmResource) => {
         const repository = this.scmService.selectedRepository;
         if (repository) {
@@ -67,6 +76,7 @@ export class ScmWidget extends ScmNavigableListWidget<ScmResource> implements St
     @inject(ScmGroupCommandRegistry) protected readonly scmGroupCommandRegistry: ScmGroupCommandRegistry;
     @inject(ScmService) private readonly scmService: ScmService;
     @inject(CommandRegistry) private readonly commandRegistry: CommandRegistry;
+    @inject(ApplicationShell) protected readonly shell: ApplicationShell;
     @inject(EditorManager) protected readonly editorManager: EditorManager;
     @inject(ContextMenuRenderer) protected readonly contextMenuRenderer: ContextMenuRenderer;
     @inject(ScmAvatarService) protected readonly avatarService: ScmAvatarService;
@@ -75,7 +85,6 @@ export class ScmWidget extends ScmNavigableListWidget<ScmResource> implements St
     constructor() {
         super();
         this.id = 'theia-scmContainer';
-        this.title.label = 'SCM';
         this.title.caption = 'Source Control';
         this.title.closable = true;
         this.title.iconClass = 'scm-tab-icon';
@@ -106,11 +115,21 @@ export class ScmWidget extends ScmNavigableListWidget<ScmResource> implements St
         this.scmService.onDidChangeSelectedRepositories(repository => {
             if (repository) {
                 this.selectedRepoUri = repository.provider.rootUri;
+                this.title.label = 'SCM: ' + repository.provider.contextValue;
+                this.shell.leftPanelHandler.refresh();
                 this.update();
             } else {
                 this.selectedRepoUri = undefined;
             }
         });
+    }
+
+    get onUpdate(): CoreEvent<void> {
+        return this.onUpdateEmitter.event;
+    }
+    protected onUpdateRequest(msg: Message): void {
+        super.onUpdateRequest(msg);
+        this.onUpdateEmitter.fire(undefined);
     }
 
     protected addScmListKeyListeners = (id: string) => this.doAddScmListKeyListeners(id);
@@ -546,7 +565,7 @@ class ScmResourceGroupsContainer extends React.Component<ScmResourceGroupsContai
     componentDidMount() {
         setTimeout(() => {
             this.props.addScmListKeyListeners(this.props.id);
-        }, 1000);
+        }, 3000);
     }
 }
 

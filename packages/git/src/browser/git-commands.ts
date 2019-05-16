@@ -56,12 +56,11 @@ export class GitCommands implements Disposable {
     @inject(FileSystem)
     protected readonly fileSystem: FileSystem;
 
-    @inject(ScmWidget)
-    protected readonly scmWidget: ScmWidget;
-
     protected readonly toDispose = new DisposableCollection();
 
-    protected gitNodes: GitFileChangeNode[];
+    protected stagedChanges: GitFileChangeNode[] = [];
+    protected unstagedChanges: GitFileChangeNode[] = [];
+    protected mergeChanges: GitFileChangeNode[] = [];
 
     constructor(
         @inject(Git) protected readonly git: Git,
@@ -71,7 +70,54 @@ export class GitCommands implements Disposable {
         @inject(CommandService) protected readonly commandService: CommandService,
         @inject(GitRepositoryProvider) protected readonly repositoryProvider: GitRepositoryProvider,
         @inject(LabelProvider) protected readonly labelProvider: LabelProvider,
+        @inject(ScmWidget) protected readonly scmWidget: ScmWidget,
         @inject(GitCommitMessageValidator) protected readonly commitMessageValidator: GitCommitMessageValidator) {
+
+        this.scmWidget.onUpdate(async () => {
+            const repository = this.repositoryProvider.selectedRepository;
+            let status;
+            if (repository) {
+                status = await this.git.status(repository);
+            }
+            const stagedChanges = [];
+            const unstagedChanges = [];
+            const mergeChanges = [];
+            if (status) {
+                for (const change of status.changes) {
+                    const uri = new URI(change.uri);
+                    const [icon, label, description] = await Promise.all([
+                        this.labelProvider.getIcon(uri),
+                        this.labelProvider.getName(uri),
+                        repository ? Repository.relativePath(repository, uri.parent).toString() : this.labelProvider.getLongName(uri.parent)
+                    ]);
+                    if (GitFileStatus[GitFileStatus.Conflicted.valueOf()] !== GitFileStatus[change.status]) {
+                        if (change.staged) {
+                            stagedChanges.push({
+                                icon, label, description,
+                                ...change
+                            });
+                        } else {
+                            unstagedChanges.push({
+                                icon, label, description,
+                                ...change
+                            });
+                        }
+                    } else {
+                        if (!change.staged) {
+                            mergeChanges.push({
+                                icon, label, description,
+                                ...change
+                            });
+                        }
+                    }
+                }
+                this.incomplete = status.incomplete;
+            }
+            const sort = (l: GitFileChangeNode, r: GitFileChangeNode) => l.label.localeCompare(r.label);
+            this.stagedChanges = stagedChanges.sort(sort);
+            this.unstagedChanges = unstagedChanges.sort(sort);
+            this.mergeChanges = mergeChanges.sort(sort);
+        });
     }
 
     async openChange(change: GitFileChange, options?: EditorOpenerOptions): Promise<EditorWidget | undefined> {
@@ -179,11 +225,10 @@ export class GitCommands implements Disposable {
                 const repository = this.repositoryProvider.selectedRepository;
                 if (repository) {
                     // discard new files
-                    const unstaged = await this.getUnStagedChanges(repository);
-                    const newUris = unstaged.filter(c => c.status === GitFileStatus.New).map(c => c.uri);
+                    const newUris = this.unstagedChanges.filter(c => c.status === GitFileStatus.New).map(c => c.uri);
                     this.deleteAll(newUris);
                     // unstage changes
-                    const uris = unstaged.map(c => c.uri);
+                    const uris = this.unstagedChanges.map(c => c.uri);
                     await this.git.unstage(repository, uris, { treeish: 'HEAD', reset: 'working-tree' });
                 }
             } catch (error) {
@@ -224,10 +269,10 @@ export class GitCommands implements Disposable {
     }
 
     readonly stageAll = () => this.doStageAll();
-    protected async doStageAll() {
+    protected doStageAll() {
         const repository = this.repositoryProvider.selectedRepository;
         if (repository) {
-            this.stage(repository, await this.getUnStagedChanges(repository));
+            this.stage(repository, this.unstagedChanges);
         }
     }
 
@@ -245,63 +290,52 @@ export class GitCommands implements Disposable {
         }
     }
 
-    async findChange(uri: URI): Promise<GitFileChange | undefined> {
-        const repository = this.repositoryProvider.selectedRepository;
-        if (repository) {
-            const stringUri = uri.toString();
-            const merged = await this.getMergeChanges(repository);
-            const merge = merged.find(c => c.uri.toString() === stringUri);
-            if (merge) {
-                return merge;
-            }
-            const unstagedChanges = await this.getUnStagedChanges(repository);
-            const unstaged = unstagedChanges.find(c => c.uri.toString() === stringUri);
-            if (unstaged) {
-                return unstaged;
-            }
-            const staged = await this.getStagedChanges(repository);
-            return staged.find(c => c.uri.toString() === stringUri);
+    findChange(uri: URI): GitFileChange | undefined {
+        const stringUri = uri.toString();
+        const merge = this.mergeChanges.find(c => c.uri.toString() === stringUri);
+        if (merge) {
+            return merge;
         }
+        const unstaged = this.unstagedChanges.find(c => c.uri.toString() === stringUri);
+        if (unstaged) {
+            return unstaged;
+        }
+        return this.stagedChanges.find(c => c.uri.toString() === stringUri);
     }
 
     handleOpenChange = async (change: GitFileChange, options?: EditorOpenerOptions) => this.openChange(change, options);
 
-    async getUriToOpen(change: GitFileChange): Promise<URI> {
+    getUriToOpen(change: GitFileChange): URI {
         const changeUri: URI = new URI(change.uri);
-        const repository = this.repositoryProvider.selectedRepository;
-        if (repository) {
-            const staged = await this.getStagedChanges(repository);
-            if (change.status !== GitFileStatus.New) {
-                if (change.staged) {
-                    return DiffUris.encode(
-                        changeUri.withScheme(GIT_RESOURCE_SCHEME).withQuery('HEAD'),
-                        changeUri.withScheme(GIT_RESOURCE_SCHEME),
-                        changeUri.displayName + ' (Index)');
-                }
-                if (staged.find(c => c.uri === change.uri)) {
-                    return DiffUris.encode(
-                        changeUri.withScheme(GIT_RESOURCE_SCHEME),
-                        changeUri,
-                        changeUri.displayName + ' (Working tree)');
-                }
-                const merged = await this.getMergeChanges(repository);
-                if (merged.find(c => c.uri === change.uri)) {
-                    return changeUri;
-                }
+        if (change.status !== GitFileStatus.New) {
+            if (change.staged) {
                 return DiffUris.encode(
                     changeUri.withScheme(GIT_RESOURCE_SCHEME).withQuery('HEAD'),
-                    changeUri,
-                    changeUri.displayName + ' (Working tree)');
+                    changeUri.withScheme(GIT_RESOURCE_SCHEME),
+                    changeUri.displayName + ' (Index)');
             }
-            if (change.staged) {
-                return changeUri.withScheme(GIT_RESOURCE_SCHEME);
-            }
-            if (staged.find(c => c.uri === change.uri)) {
+            if (this.stagedChanges.find(c => c.uri === change.uri)) {
                 return DiffUris.encode(
                     changeUri.withScheme(GIT_RESOURCE_SCHEME),
                     changeUri,
                     changeUri.displayName + ' (Working tree)');
             }
+            if (this.mergeChanges.find(c => c.uri === change.uri)) {
+                return changeUri;
+            }
+            return DiffUris.encode(
+                changeUri.withScheme(GIT_RESOURCE_SCHEME).withQuery('HEAD'),
+                changeUri,
+                changeUri.displayName + ' (Working tree)');
+        }
+        if (change.staged) {
+            return changeUri.withScheme(GIT_RESOURCE_SCHEME);
+        }
+        if (this.stagedChanges.find(c => c.uri === change.uri)) {
+            return DiffUris.encode(
+                changeUri.withScheme(GIT_RESOURCE_SCHEME),
+                changeUri,
+                changeUri.displayName + ' (Working tree)');
         }
         return changeUri;
     }
@@ -324,20 +358,5 @@ export class GitCommands implements Disposable {
 
     dispose(): void {
         this.toDispose.dispose();
-    }
-
-    private async getStagedChanges(repository: Repository): Promise<GitFileChange[]> {
-        const status = await this.git.status(repository);
-        return status.changes.filter(change => change.staged);
-    }
-
-    private async getUnStagedChanges(repository: Repository): Promise<GitFileChange[]> {
-        const status = await this.git.status(repository);
-        return status.changes.filter(change => !change.staged);
-    }
-
-    private async getMergeChanges(repository: Repository): Promise<GitFileChange[]> {
-        const status = await this.git.status(repository);
-        return status.changes.filter(change => GitFileStatus[GitFileStatus.Conflicted.valueOf()] === GitFileStatus[change.status]);
     }
 }

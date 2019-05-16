@@ -56,18 +56,18 @@ export abstract class ScmNavigableListWidget<T extends { group: ScmResourceGroup
     }
 
     protected navigateLeft(): void {
+        this.selectPreviousNode();
         const selected = this.getSelected();
         if (selected) {
             selected.open();
-            this.selectPreviousNode();
         }
     }
 
     protected navigateRight(): void {
+        this.selectNextNode();
         const selected = this.getSelected();
         if (selected) {
             selected.open();
-            this.selectNextNode();
         }
     }
 
